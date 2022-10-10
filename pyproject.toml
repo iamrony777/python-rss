@@ -1,0 +1,28 @@
+[tool.poetry]
+name = "reddit-rss"
+version = "0.1.0"
+description = "Reddit to RSS generator, written in python"
+authors = ["iamrony777 <iamrony777@pm.me>"]
+license = "MIT"
+readme = "README.md"
+packages = [{include = "reddit_rss"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+fastapi = "^0.85.0"
+uvicorn = "^0.18.3"
+pyclean = "^2.2.0"
+httpx = {extras = ["http2"], version = "^0.23.0"}
+lxml = "^4.9.1"
+cloudscraper = "^1.2.64"
+loguru = "^0.6.0"
+
+
+[tool.poetry.group.dev.dependencies]
+black = "^22.10.0"
+rich = "^12.6.0"
+python-dotenv = "^0.21.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
