@@ -1,11 +1,12 @@
 from datetime import datetime, timezone
 from os import getenv
+import re
 from urllib.parse import urljoin
 from httpx import AsyncClient
 
 from lxml import etree, html
 
-from api import logger
+import python_rss
 
 
 class Reddit:
@@ -23,7 +24,7 @@ class Reddit:
             getenv("IMAGE_CACHE_URL", image_cache_url),
             "/?default=https://http.cat/404&w=500&h=500&output=png&url=",
         )
-        self.parser = html.HTMLParser(encoding="ISO-8859-1")
+        self.parser = html.HTMLParser(encoding="utf-8")
 
         self.client = AsyncClient(
             base_url=self.base_url,
@@ -33,7 +34,8 @@ class Reddit:
             max_redirects=10,
             headers={
                 "User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36"
-            },        )
+            },
+        )
         self.cookies = {
             "comment_short": getenv("COMMENT_SHORT", "top"),
             "show_nsfw": getenv("SHOW_NSFW", "on"),
@@ -48,28 +50,59 @@ class Reddit:
         channel: etree._Element = etree.SubElement(self.rss, "channel")
 
         #
-        for el in tree.xpath("//div[@id='subreddit']/div[@id='sub_meta']"):
-            el_name: str = el.find("p[@id='sub_name']").text.strip()
-            el_title: str = el.find("h1[@id='sub_title']").text.strip()
-            el_logo: str = urljoin(self.base_url, el.find("img").get("src")).split(
-                "?", maxsplit=1
-            )[0]
-            el_link: str = urljoin(self.base_url, el_name)
-            el_description: str = el.find("p[@id='sub_description']").text.strip()
+        if (
+            len(
+                tree.xpath("//div[@class='panel'][@id='subreddit']/div[@id='sub_meta']")
+            )
+            != 0
+        ):
+            for el in tree.xpath(
+                "//div[@class='panel'][@id='subreddit']/div[@id='sub_meta']"
+            ):
+                el_name: str = el.find("p[@id='sub_name']").text.strip()
 
-        # channel.title
-        title = etree.SubElement(channel, "title")
-        title.text = el_title
+                try:
+                    el_title: str = el.find("h1[@id='sub_title']").text.strip()
+                except AttributeError:
+                    el_title: str = tree.find("head/title").text.strip()
+                try:
+                    el_logo: str = urljoin(
+                        self.base_url, el.find("img").get("src")
+                    ).split("?", maxsplit=1)[0]
+                except AttributeError:
+                    el_logo = "https://http.cat/404"
 
-        # channel.desciption
-        description = etree.SubElement(channel, "description")
-        description.text = el_description
+                el_link: str = urljoin(self.base_url, el_name)
 
-        # channel.link
-        etree.SubElement(channel, "link").text = el_link
+                try:
+                    el_description: str = el.find(
+                        "p[@id='sub_description']"
+                    ).text.strip()
+                except AttributeError:
+                    el_description = el_name
 
-        # channel.logo
-        etree.SubElement(channel, "icon").text = self.image_cache_url + el_logo
+            # channel.title
+            if isinstance(el_title, str):
+                title = etree.SubElement(channel, "title").text = el_title
+
+            # channel.desciption
+            if isinstance(el_description, str):
+                description = etree.SubElement(
+                    channel, "description"
+                ).text = el_description
+
+            # channel.link
+            if isinstance(el_link, str):
+                etree.SubElement(channel, "link").text = el_link
+
+            # channel.logo
+            if isinstance(el_logo, str):
+                etree.SubElement(channel, "icon").text = self.image_cache_url + el_logo
+        else:
+            el_title = tree.find("head/title").text.strip()
+            if not bool(re.search(r"r\/", el_title)):
+                el_title = "r/" + el_title
+            el_link = tree.base_url
 
         gen = etree.SubElement(
             channel,
@@ -87,7 +120,7 @@ class Reddit:
             channel,
             etree.QName("http://www.w3.org/2005/Atom", "link"),
             attrib={
-                "href": getenv("VERCEL_URL") + el_name.replace("r/", "/r/"),
+                "href": getenv("VERCEL_URL") + el_title.replace("r/", "/r/"),
                 "rel": "self",
                 "type": "application/rss+xml",
             },
@@ -204,7 +237,7 @@ class Reddit:
                     continue
         return item
 
-    @logger.catch
+    # @logger.catch
     async def get_feed(self, subreddit: str):
         resp = await self.client.get(
             url=f"/r/{subreddit}",
@@ -234,4 +267,4 @@ if __name__ == "__main__":
     from rich import print
     from asyncio import run
 
-    print(run(Reddit().get_feed(subreddit="ksi")))
+    print(run(Reddit().get_feed(subreddit="boobies")))

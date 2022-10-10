@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 
 # import uvicorn
-from api.routes import reddit
+from python_rss.routes import reddit
 
 app = FastAPI()
 
